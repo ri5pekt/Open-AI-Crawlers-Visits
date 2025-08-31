@@ -18,32 +18,25 @@
         <h1>OpenAI Crawlers Overview</h1>
 
         <div id="fig1" class="chart"></div>
+        <div id="fig1b" class="chart"></div>
         <div id="fig2" class="chart"></div>
         <div id="fig3" class="chart"></div>
 
         <script>
             (async function () {
                 const API_URL =
-                    "https://www.particleformen.com/wp-json/get-data/v1/openai-crawlers/overview?exclude_last=1&limit=10";
+                    "https://www.particleformen.com/wp-json/get-data/v1/openai-crawlers/overview?exclude_last=1&limit=10&cache=1";
                 const DOMAIN = "https://www.particleformen.com/";
 
-                console.log("[INFO] Fetching data from API...");
                 const r = await fetch(API_URL, {
-                    headers: {
-                        "User-Agent": navigator.userAgent,
-                        Accept: "application/json",
-                    },
+                    headers: { "User-Agent": navigator.userAgent, Accept: "application/json" },
                 });
-                if (!r.ok) {
-                    console.error("API request failed:", r.status, r.statusText);
-                    return;
-                }
-                const payload = await r.json();
-                console.log("[INFO] Payload received:", payload);
+                if (!r.ok) return console.error("API request failed:", r.status, r.statusText);
 
+                const payload = await r.json();
                 const days = payload.meta.days.map((d) => new Date(d));
 
-                // === Fig 1: Top 10 daily ===
+                // === Fig 1: Top 10 daily — ALL crawlers (unchanged except template literal fixes) ===
                 const top10 = payload.top10;
                 const pages = top10.pages;
                 const totals = top10.totals;
@@ -53,9 +46,9 @@
                     const y = days.map((d) => top10.daily[p][d.toISOString().split("T")[0]] || 0);
                     return {
                         x: days,
-                        y: y,
+                        y,
                         mode: "lines",
-                        name: p.replace(DOMAIN, "") + ` (${totals[p]})`,
+                        name: `${p.replace(DOMAIN, "")} (${totals[p]})`,
                         hovertemplate: "Date: %{x|%Y-%m-%d}<br>Visits: %{y}<extra>%{fullData.name}</extra>",
                     };
                 });
@@ -73,6 +66,49 @@
                     },
                     { responsive: true }
                 );
+
+                // === Fig 1B: Top 10 daily — ChatGPT-User only (NEW) ===
+                // Payload key should be "ChatGPT-User". Fallbacks in case DB uses different casing.
+                const typeBlock =
+                    (payload.top10_by_type &&
+                        (payload.top10_by_type["ChatGPT-User"] ||
+                            payload.top10_by_type["chatGPT-USER"] ||
+                            payload.top10_by_type["CHATGPT-USER"] ||
+                            payload.top10_by_type["ChatGPT-USER"])) ||
+                    null;
+
+                if (typeBlock) {
+                    const tPages = typeBlock.pages;
+                    const tTotals = typeBlock.totals;
+                    const tGrand = typeBlock.grand_total;
+
+                    const fig1b_traces = tPages.map((p) => {
+                        const y = days.map((d) => typeBlock.daily[p][d.toISOString().split("T")[0]] || 0);
+                        return {
+                            x: days,
+                            y,
+                            mode: "lines",
+                            name: `${p.replace(DOMAIN, "")} (${tTotals[p]})`,
+                            hovertemplate: "Date: %{x|%Y-%m-%d}<br>Visits: %{y}<extra>%{fullData.name}</extra>",
+                        };
+                    });
+
+                    Plotly.newPlot(
+                        "fig1b",
+                        fig1b_traces,
+                        {
+                            title: `ChatGPT-User Daily Visits — Top 10 Pages (${tGrand} total visits)`,
+                            xaxis: { title: "" },
+                            yaxis: { title: "Visits" },
+                            hovermode: "closest",
+                            legend: { orientation: "h", yanchor: "top", y: -0.2, xanchor: "center", x: 0.5 },
+                            margin: { l: 60, r: 20, t: 80, b: 100 },
+                        },
+                        { responsive: true }
+                    );
+                } else {
+                    console.warn("[INFO] No top10_by_type block for ChatGPT-User in payload.");
+                }
 
                 // === Fig 2: Total daily (all pages) ===
                 const total_daily = days.map((d) => payload.total_daily.series[d.toISOString().split("T")[0]] || 0);
@@ -100,7 +136,7 @@
                     { responsive: true }
                 );
 
-                // === Fig 3: Daily by crawler type ===
+                // === Fig 3: Daily by crawler type (fix name template) ===
                 const crawl = payload.crawler_daily;
                 const types = crawl.types;
                 const type_totals = crawl.totals;
@@ -109,7 +145,7 @@
                     const y = days.map((d) => crawl.daily[ct][d.toISOString().split("T")[0]] || 0);
                     return {
                         x: days,
-                        y: y,
+                        y,
                         mode: "lines",
                         name: `${ct} (${type_totals[ct]})`,
                         hovertemplate: "Date: %{x|%Y-%m-%d}<br>Visits: %{y}<extra>%{fullData.name}</extra>",
@@ -121,7 +157,7 @@
                     "<b>ChatGPT-User</b>: User-triggered fetches from ChatGPT/Custom GPTs.",
                     "<b>GPTBot</b>: Training crawler; disallow via robots.txt to opt out.",
                 ].map((text, i) => ({
-                    text: text,
+                    text,
                     xref: "paper",
                     yref: "paper",
                     x: 0,
@@ -141,7 +177,7 @@
                         hovermode: "closest",
                         legend: { orientation: "h", yanchor: "top", y: -0.2, xanchor: "center", x: 0.5 },
                         margin: { l: 60, r: 20, t: 100, b: 180 },
-                        annotations: annotations,
+                        annotations,
                     },
                     { responsive: true }
                 );
