@@ -19,13 +19,14 @@
 
         <div id="fig1" class="chart"></div>
         <div id="fig1b" class="chart"></div>
+        <div id="fig1c" class="chart"></div>
         <div id="fig2" class="chart"></div>
         <div id="fig3" class="chart"></div>
 
         <script>
             (async function () {
                 const API_URL =
-                    "https://www.particleformen.com/wp-json/get-data/v1/openai-crawlers/overview?exclude_last=1&limit=10&cache=1";
+                    "https://www.particleformen.com/wp-json/get-data/v1/openai-crawlers/overview?exclude_last=0&limit=10&cache=3";
                 const DOMAIN = "https://www.particleformen.com/";
 
                 const r = await fetch(API_URL, {
@@ -108,6 +109,47 @@
                     );
                 } else {
                     console.warn("[INFO] No top10_by_type block for ChatGPT-User in payload.");
+                }
+
+                // === Fig 1C: Top 10 daily — ChatGPT-Referral (real users) ===
+                const referralBlock =
+                    (payload.top10_by_type &&
+                        (payload.top10_by_type["ChatGPT-Referral"] ||
+                            payload.top10_by_type["chatgpt-referral"] ||
+                            payload.top10_by_type["CHATGPT-REFERRAL"])) ||
+                    null;
+
+                if (referralBlock) {
+                    const rPages = referralBlock.pages || [];
+                    const rTotals = referralBlock.totals || {};
+                    const rGrand = referralBlock.grand_total || 0;
+
+                    const fig1c_traces = rPages.map((p) => {
+                        const y = days.map((d) => referralBlock.daily[p][d.toISOString().split("T")[0]] || 0);
+                        return {
+                            x: days,
+                            y,
+                            mode: "lines",
+                            name: `${p.replace(DOMAIN, "")} (${rTotals[p]})`,
+                            hovertemplate: "Date: %{x|%Y-%m-%d}<br>Visits: %{y}<extra>%{fullData.name}</extra>",
+                        };
+                    });
+
+                    Plotly.newPlot(
+                        "fig1c",
+                        fig1c_traces,
+                        {
+                            title: `ChatGPT-Referral Daily Visits — Top 10 Pages (${rGrand} total visits)`,
+                            xaxis: { title: "" },
+                            yaxis: { title: "Visits" },
+                            hovermode: "closest",
+                            legend: { orientation: "h", yanchor: "top", y: -0.2, xanchor: "center", x: 0.5 },
+                            margin: { l: 60, r: 20, t: 80, b: 100 },
+                        },
+                        { responsive: true }
+                    );
+                } else {
+                    console.warn("[INFO] No top10_by_type block for ChatGPT-Referral in payload.");
                 }
 
                 // === Fig 2: Total daily (all pages) ===
